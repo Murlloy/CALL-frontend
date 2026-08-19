@@ -6,6 +6,44 @@
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* ---- Tema claro — "céu" ---- */
+  --color-bg: 248 252 255; /* #F8FCFF */
+  --color-surface: 255 255 255; /* cartões, inputs */
+  --color-surface-raised: 239 248 255; /* hover / elevado — #EFF8FF */
+  --color-border: 220 234 244; /* #DCEAF4 */
+  --color-border-subtle: 232 243 250;
+  --color-ink-primary: 20 32 43; /* #14202B */
+  --color-ink-secondary: 100 117 134; /* #647586 */
+  --color-ink-muted: 148 168 184;
+  --color-signal: 49 155 239; /* #319BEF — azul de ação */
+  --color-signal-strong: 85 183 255; /* #55B7FF */
+  --color-signal-dim: 220 239 255; /* #DCEFFF */
+  --color-coral: 235 74 96;
+  --color-coral-strong: 250 104 126;
+  --color-coral-dim: 255 226 230;
+  --color-amber: 217 141 30;
+  --color-shadow: 100 140 180;
+}
+
+.dark {
+  /* ---- Tema escuro — "noite tecnológica" ---- */
+  --color-bg: 7 8 13; /* #07080D */
+  --color-surface: 21 23 34; /* #151722 */
+  --color-surface-raised: 29 31 44; /* #1D1F2C */
+  --color-border: 41 38 51; /* #292633 */
+  --color-border-subtle: 30 28 38;
+  --color-ink-primary: 245 243 255; /* #F5F3FF */
+  --color-ink-secondary: 154 150 170; /* #9A96AA */
+  --color-ink-muted: 104 100 122;
+  --color-signal: 139 92 246; /* #8B5CF6 — roxo principal */
+  --color-signal-strong: 167 139 250; /* #A78BFA */
+  --color-signal-dim: 40 30 64;
+  --color-coral: 255 92 114;
+  --color-coral-strong: 255 122 140;
+  --color-coral-dim: 74 21 32;
+  --color-amber: 255 180 84;
+  --color-shadow: 0 0 0;
 }
 
 * {
@@ -14,17 +52,53 @@
 
 html,
 body {
-  background: #0a0d12;
-  color: #edeff3;
+  background: rgb(var(--color-bg));
+  color: rgb(var(--color-ink-primary));
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }
 
 body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  position: relative;
+  min-height: 100vh;
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+
+/* Atmosfera de fundo — "céu" no claro, "brilho roxo noturno" no escuro.
+   Puro CSS (sem imagens), extremamente sutil, com deslocamento lento. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background: radial-gradient(
+      60% 50% at 15% 0%,
+      rgb(var(--color-signal) / 0.16),
+      transparent 65%
+    ),
+    radial-gradient(50% 45% at 100% 20%, rgb(var(--color-signal) / 0.1), transparent 60%);
+  animation: drift-a 18s ease-in-out infinite;
+}
+
+body::after {
+  background: radial-gradient(40% 40% at 85% 90%, rgb(var(--color-signal-strong) / 0.08), transparent 60%);
+  animation: drift-b 22s ease-in-out infinite;
 }
 
 ::selection {
-  background: rgba(0, 217, 181, 0.25);
+  background: rgb(var(--color-signal) / 0.25);
 }
 
 /* Respeita preferência do usuário por menos movimento. */
@@ -40,12 +114,12 @@ body {
 
 /* Foco visível e consistente em toda a aplicação. */
 :focus-visible {
-  outline: 2px solid #00d9b5;
+  outline: 2px solid rgb(var(--color-signal));
   outline-offset: 2px;
   border-radius: 4px;
 }
 
-/* Scrollbar discreta, alinhada ao tema escuro. */
+/* Scrollbar discreta, alinhada ao tema. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -54,11 +128,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262d3a;
+  background: rgb(var(--color-border));
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #333c4d;
+  background: rgb(var(--color-signal) / 0.4);
 }
 
 /* Slider do controle de volume da transmissão (áudio do compartilhamento
@@ -73,10 +147,10 @@ body {
   border-radius: 999px;
   background: linear-gradient(
     to right,
-    #00d9b5 0%,
-    #00d9b5 var(--range-fill, 0%),
-    #262d3a var(--range-fill, 0%),
-    #262d3a 100%
+    rgb(var(--color-signal)) 0%,
+    rgb(var(--color-signal)) var(--range-fill, 0%),
+    rgb(var(--color-border)) var(--range-fill, 0%),
+    rgb(var(--color-border)) 100%
   );
   outline: none;
   cursor: pointer;
@@ -88,8 +162,8 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #edeff3;
-  border: 2px solid #00d9b5;
+  background: rgb(var(--color-ink-primary));
+  border: 2px solid rgb(var(--color-signal));
   cursor: pointer;
   transition: transform 0.1s ease;
 }
@@ -101,20 +175,20 @@ body {
 .range-slider::-moz-range-track {
   height: 4px;
   border-radius: 999px;
-  background: #262d3a;
+  background: rgb(var(--color-border));
 }
 
 .range-slider::-moz-range-progress {
   height: 4px;
   border-radius: 999px;
-  background: #00d9b5;
+  background: rgb(var(--color-signal));
 }
 
 .range-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #edeff3;
-  border: 2px solid #00d9b5;
+  background: rgb(var(--color-ink-primary));
+  border: 2px solid rgb(var(--color-signal));
   cursor: pointer;
 }

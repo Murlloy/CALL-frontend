@@ -39,16 +39,16 @@ function ControlButton({
       className={cn(
         "relative flex h-13 w-13 items-center justify-center rounded-2xl transition-all duration-150 active:scale-95",
         danger
-          ? "bg-coral text-void hover:bg-coral-strong"
+          ? "bg-coral text-white hover:bg-coral-strong"
           : active
-          ? "bg-surface-raised text-ink-primary border border-signal/30"
+          ? "bg-signal-dim text-ink-primary border border-signal/30"
           : "bg-surface-raised text-ink-secondary hover:text-ink-primary border border-transparent hover:border-border"
       )}
       style={{ height: "3.25rem", width: "3.25rem" }}
     >
       {children}
       {typeof badge === "number" && badge > 0 ? (
-        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-signal text-[10px] font-semibold text-void">
+        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-signal text-[10px] font-semibold text-white">
           {badge}
         </span>
       ) : null}

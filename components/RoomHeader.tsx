@@ -2,6 +2,7 @@
 
 import { Logo } from "./Logo";
 import { ConnectionStatus } from "./ConnectionStatus";
+import { ThemeToggle } from "./ThemeToggle";
 import type { ConnectionStatus as Status } from "@/hooks/useWebRTC";
 
 export function RoomHeader({
@@ -29,6 +30,7 @@ export function RoomHeader({
             <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
           </svg>
         </button>
+        <ThemeToggle />
       </div>
     </header>
   );

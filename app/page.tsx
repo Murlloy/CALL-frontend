@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/Button";
 import { JoinRoom } from "@/components/JoinRoom";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 type View = "landing" | "join";
 
@@ -21,10 +22,15 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
-      <div className="mb-10">
+    <main className="relative flex min-h-screen flex-col items-center justify-center px-6 py-12">
+      <div className="absolute right-5 top-5">
+        <ThemeToggle />
+      </div>
+
+      <div className="mb-3">
         <Logo size="lg" />
       </div>
+      <p className="mb-9 text-sm text-ink-secondary">converse. conecte.</p>
 
       {view === "landing" ? (
         <LandingForm onCreate={handleCreate} onJoin={() => setView("join")} />
@@ -69,7 +75,7 @@ function LandingForm({
           onChange={(e) => setName(e.target.value)}
           maxLength={24}
           placeholder="Digite seu nome"
-          className="h-12 rounded-xl border border-border bg-surface px-4 text-[15px] text-ink-primary placeholder:text-ink-muted outline-none transition-colors duration-150 focus:border-signal/60 focus:bg-surface-raised"
+          className="h-12 rounded-xl border border-border bg-surface px-4 text-[15px] text-ink-primary placeholder:text-ink-muted outline-none transition-all duration-150 focus:border-signal/60 focus:bg-surface-raised focus:shadow-ring"
           autoFocus
         />
         {nameError ? <span className="text-xs text-coral">Digite um nome para continuar.</span> : null}

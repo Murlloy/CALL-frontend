@@ -21,8 +21,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            "h-12 rounded-xl border border-border bg-surface px-4 text-[15px] text-ink-primary placeholder:text-ink-muted outline-none transition-colors duration-150",
-            "focus:border-signal/60 focus:bg-surface-raised",
+            "h-12 rounded-xl border border-border bg-surface px-4 text-[15px] text-ink-primary placeholder:text-ink-muted outline-none transition-all duration-150",
+            "focus:border-signal/60 focus:bg-surface-raised focus:shadow-ring",
             mono && "font-mono uppercase tracking-[0.2em]",
             error && "border-coral/60",
             className ?? undefined

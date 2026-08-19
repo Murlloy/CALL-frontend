@@ -20,7 +20,7 @@ export function ConfirmModal({
   onCancel,
 }: ConfirmModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-void/70 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="animate-fade-up w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-soft">
         <h3 className="text-base font-semibold text-ink-primary">{title}</h3>
         {description ? <p className="mt-2 text-sm text-ink-secondary">{description}</p> : null}
