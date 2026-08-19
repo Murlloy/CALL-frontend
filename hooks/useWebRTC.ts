@@ -22,6 +22,20 @@ interface PeerEntry {
   connection: RTCPeerConnection;
   pendingCandidates: RTCIceCandidateInit[];
   remoteDescriptionSet: boolean;
+  // MediaStream que agrega apenas o áudio do microfone remoto (participante
+  // falando). Mantido separado do áudio da transmissão de tela para que os
+  // dois tenham controles de volume independentes — ver `remoteScreenAudio`.
+  micStream: MediaStream;
+  // id da primeira audio track recebida deste peer. O microfone é sempre a
+  // primeira track de áudio anexada à conexão (attachLocalTracks é chamado
+  // na criação do peer, antes de qualquer compartilhamento de tela existir),
+  // então usamos essa ordem para diferenciar "áudio do microfone" de "áudio
+  // da transmissão de tela" sem precisar de nenhuma mensagem extra de
+  // sinalização.
+  micAudioTrackId: string | null;
+  // MediaStream com o vídeo (e, quando disponível, o áudio) da tela
+  // compartilhada recebida deste peer.
+  screenStream: MediaStream;
 }
 
 export interface UseWebRTCResult {
@@ -31,18 +45,21 @@ export interface UseWebRTCResult {
   roomCode: string | null;
   participants: ParticipantInfo[];
   remoteStreams: Map<string, MediaStream>;
+  remoteScreenStreams: Map<string, MediaStream>;
   connectionStatus: ConnectionStatus;
   micEnabled: boolean;
   isSharingScreen: boolean;
   sharingPeerId: string | null; // "self" ou o id do participante que está compartilhando
   localScreenStream: MediaStream | null;
   localAudioLevel: number;
+  screenVolume: number;
   error: CallError | null;
   createRoom: (name: string) => Promise<string>;
   joinRoom: (name: string, roomCode: string) => Promise<void>;
   leaveRoom: () => void;
   toggleMic: () => void;
   toggleScreenShare: () => Promise<void>;
+  setScreenVolume: (value: number) => void;
   clearError: () => void;
 }
 
@@ -53,12 +70,19 @@ export function useWebRTC(): UseWebRTCResult {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [participants, setParticipants] = useState<ParticipantInfo[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  // Áudio da transmissão de tela recebida de cada peer (separado do áudio do
+  // microfone em `remoteStreams`). Fica vazio quando não há compartilhamento
+  // com áudio em andamento.
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState<Map<string, MediaStream>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
   const [micEnabled, setMicEnabled] = useState(true);
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [sharingPeerId, setSharingPeerId] = useState<string | null>(null);
   const [localScreenStream, setLocalScreenStream] = useState<MediaStream | null>(null);
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
+  // Volume do áudio da transmissão recebida (0.0 a 1.0). Independente do
+  // volume/mudo do microfone e dos demais participantes.
+  const [screenVolume, setScreenVolume] = useState(1);
   const [error, setError] = useState<CallError | null>(null);
 
   const signalingRef = useRef<SignalingClient | null>(null);
@@ -89,6 +113,22 @@ export function useWebRTC(): UseWebRTCResult {
     });
   }, []);
 
+  const upsertRemoteScreenStream = useCallback((peerId: string, stream: MediaStream) => {
+    setRemoteScreenStreams((prev) => {
+      const next = new Map(prev);
+      next.set(peerId, stream);
+      return next;
+    });
+  }, []);
+
+  const removeRemoteScreenStream = useCallback((peerId: string) => {
+    setRemoteScreenStreams((prev) => {
+      const next = new Map(prev);
+      next.delete(peerId);
+      return next;
+    });
+  }, []);
+
   const closePeer = useCallback(
     (peerId: string) => {
       const entry = peersRef.current.get(peerId);
@@ -97,8 +137,9 @@ export function useWebRTC(): UseWebRTCResult {
         peersRef.current.delete(peerId);
       }
       removeRemoteStream(peerId);
+      removeRemoteScreenStream(peerId);
     },
-    [removeRemoteStream]
+    [removeRemoteStream, removeRemoteScreenStream]
   );
 
   const attachLocalTracks = useCallback((connection: RTCPeerConnection) => {
@@ -139,40 +180,70 @@ export function useWebRTC(): UseWebRTCResult {
   const createPeer = useCallback(
     (peerId: string, isInitiator: boolean) => {
       const connection = createPeerConnection();
-      const entry: PeerEntry = { connection, pendingCandidates: [], remoteDescriptionSet: false };
+      const entry: PeerEntry = {
+        connection,
+        pendingCandidates: [],
+        remoteDescriptionSet: false,
+        micStream: new MediaStream(),
+        micAudioTrackId: null,
+        screenStream: new MediaStream(),
+      };
       peersRef.current.set(peerId, entry);
 
       attachLocalTracks(connection);
 
-      const remoteStream = new MediaStream();
       connection.ontrack = (event) => {
         const track = event.track;
 
-        // Cada participante compartilha no máximo uma tela por vez, mas
-        // cada ciclo de "compartilhar" gera uma MediaStreamTrack NOVA
-        // (getDisplayMedia() sempre retorna uma track diferente). Se a
-        // track de vídeo anterior (de um compartilhamento já encerrado)
-        // continuar dentro do remoteStream, ele passa a ter duas tracks de
-        // vídeo — e o elemento <video> não troca automaticamente para a
-        // nova, podendo continuar exibindo o frame congelado da antiga.
-        // Por isso removemos qualquer track de vídeo anterior antes de
-        // anexar a nova.
         if (track.kind === "video") {
-          remoteStream.getVideoTracks().forEach((oldTrack) => {
-            if (oldTrack !== track) remoteStream.removeTrack(oldTrack);
+          // Áudio à parte: vídeo só existe na track da tela compartilhada
+          // (o microfone nunca envia vídeo). Cada ciclo de "compartilhar"
+          // gera uma MediaStreamTrack NOVA (getDisplayMedia() sempre
+          // retorna uma track diferente). Se a track de vídeo anterior (de
+          // um compartilhamento já encerrado) continuar no screenStream,
+          // ele passa a ter duas tracks de vídeo e o <video> pode continuar
+          // exibindo o frame congelado da antiga. Por isso removemos
+          // qualquer track de vídeo anterior antes de anexar a nova.
+          entry.screenStream.getVideoTracks().forEach((oldTrack) => {
+            if (oldTrack !== track) entry.screenStream.removeTrack(oldTrack);
           });
+          entry.screenStream.addTrack(track);
+          upsertRemoteScreenStream(peerId, entry.screenStream);
+
+          track.addEventListener("ended", () => {
+            entry.screenStream.removeTrack(track);
+            upsertRemoteScreenStream(peerId, entry.screenStream);
+          });
+          return;
         }
 
-        remoteStream.addTrack(track);
-        upsertRemoteStream(peerId, remoteStream);
+        // track.kind === "audio": pode ser o microfone do participante ou o
+        // áudio da transmissão de tela. A primeira audio track que chega
+        // para este peer é sempre o microfone (attachLocalTracks anexa o
+        // áudio do microfone na criação do peer, antes de qualquer
+        // compartilhamento de tela existir). Qualquer audio track adicional
+        // que chegue depois é o áudio da tela.
+        if (entry.micAudioTrackId === null) {
+          entry.micAudioTrackId = track.id;
+          entry.micStream.addTrack(track);
+          upsertRemoteStream(peerId, entry.micStream);
 
-        // Limpeza defensiva: se a track for encerrada pelo lado remoto
-        // (ex: conexão caiu no meio do compartilhamento), removemos do
-        // stream em vez de deixar uma track "morta" para trás.
-        track.addEventListener("ended", () => {
-          remoteStream.removeTrack(track);
-          upsertRemoteStream(peerId, remoteStream);
-        });
+          track.addEventListener("ended", () => {
+            entry.micStream.removeTrack(track);
+            upsertRemoteStream(peerId, entry.micStream);
+          });
+        } else {
+          entry.screenStream.getAudioTracks().forEach((oldTrack) => {
+            if (oldTrack !== track) entry.screenStream.removeTrack(oldTrack);
+          });
+          entry.screenStream.addTrack(track);
+          upsertRemoteScreenStream(peerId, entry.screenStream);
+
+          track.addEventListener("ended", () => {
+            entry.screenStream.removeTrack(track);
+            upsertRemoteScreenStream(peerId, entry.screenStream);
+          });
+        }
       };
 
       connection.onicecandidate = (event) => {
@@ -212,7 +283,7 @@ export function useWebRTC(): UseWebRTCResult {
 
       return entry;
     },
-    [attachLocalTracks, getSignaling, upsertRemoteStream]
+    [attachLocalTracks, getSignaling, upsertRemoteStream, upsertRemoteScreenStream]
   );
 
   const renegotiateAll = useCallback(() => {
@@ -422,6 +493,7 @@ export function useWebRTC(): UseWebRTCResult {
     peersRef.current.forEach((entry) => entry.connection.close());
     peersRef.current.clear();
     setRemoteStreams(new Map());
+    setRemoteScreenStreams(new Map());
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStreamRef.current = null;
     screenStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -448,15 +520,25 @@ export function useWebRTC(): UseWebRTCResult {
   }, [getSignaling, micEnabled]);
 
   const stopScreenShare = useCallback(() => {
-    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    const currentScreenStream = screenStreamRef.current;
+    if (!currentScreenStream) return; // idempotente: já parado (ex: chamado 2x pelo listener "ended" nativo)
+
+    // Capturamos as tracks (vídeo e, se houver, áudio) por identidade antes
+    // de limpar a ref, para remover exatamente os senders correspondentes a
+    // elas — nunca o sender do microfone, mesmo que ambos sejam "audio".
+    const screenTracks = currentScreenStream.getTracks();
+    screenTracks.forEach((track) => track.stop());
     screenStreamRef.current = null;
     setLocalScreenStream(null);
     setIsSharingScreen(false);
     setSharingPeerId((current) => (current === "self" ? null : current));
-    // Remove as tracks de tela de cada conexão existente.
+    // Remove as tracks de tela (vídeo + áudio, quando presente) de cada
+    // conexão existente, sem tocar no sender do microfone.
     peersRef.current.forEach((entry) => {
       entry.connection.getSenders().forEach((sender) => {
-        if (sender.track?.kind === "video") entry.connection.removeTrack(sender);
+        if (sender.track && screenTracks.includes(sender.track)) {
+          entry.connection.removeTrack(sender);
+        }
       });
     });
     renegotiateAll();
@@ -474,14 +556,25 @@ export function useWebRTC(): UseWebRTCResult {
       setLocalScreenStream(stream);
       setIsSharingScreen(true);
       setSharingPeerId("self");
-      // Se o usuário parar pelo controle nativo do navegador, sincroniza o estado.
+      // Se o usuário parar pelo controle nativo do navegador (vídeo ou,
+      // quando aplicável, a faixa de áudio da aba), sincroniza o estado.
+      // `stopScreenShare` é idempotente, então não há problema se os dois
+      // listeners dispararem.
       stream.getVideoTracks()[0]?.addEventListener("ended", () => stopScreenShare());
+      stream.getAudioTracks()[0]?.addEventListener("ended", () => stopScreenShare());
       renegotiateAll();
       getSignaling().send({ type: "screen-state", sharing: true });
     } catch {
       // Usuário cancelou o seletor nativo ou negou a permissão — não é um erro fatal.
+      // Isso também cobre o caso em que a fonte escolhida não oferece áudio:
+      // getDisplayMedia({ audio: true }) não falha nesse caso, apenas retorna
+      // uma stream sem audio track — não há catch a fazer aqui.
     }
   }, [getSignaling, isSharingScreen, renegotiateAll, stopScreenShare]);
+
+  const handleScreenVolumeChange = useCallback((value: number) => {
+    setScreenVolume(Math.min(1, Math.max(0, value)));
+  }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -502,18 +595,21 @@ export function useWebRTC(): UseWebRTCResult {
     roomCode,
     participants,
     remoteStreams,
+    remoteScreenStreams,
     connectionStatus,
     micEnabled,
     isSharingScreen,
     sharingPeerId,
     localScreenStream,
     localAudioLevel,
+    screenVolume,
     error,
     createRoom,
     joinRoom,
     leaveRoom,
     toggleMic,
     toggleScreenShare,
+    setScreenVolume: handleScreenVolumeChange,
     clearError,
   };
 }

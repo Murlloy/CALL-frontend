@@ -60,3 +60,61 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #333c4d;
 }
+
+/* Slider do controle de volume da transmissão (áudio do compartilhamento
+   de tela) — segue o mesmo acento "signal" usado no resto do app. A trilha
+   é pintada com um gradiente que usa --range-fill (definido inline pelo
+   componente) para indicar visualmente o quanto do curso já foi preenchido,
+   já que os navegadores não expõem isso nativamente via CSS puro. */
+.range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #00d9b5 0%,
+    #00d9b5 var(--range-fill, 0%),
+    #262d3a var(--range-fill, 0%),
+    #262d3a 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #edeff3;
+  border: 2px solid #00d9b5;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.range-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: #262d3a;
+}
+
+.range-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #00d9b5;
+}
+
+.range-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #edeff3;
+  border: 2px solid #00d9b5;
+  cursor: pointer;
+}

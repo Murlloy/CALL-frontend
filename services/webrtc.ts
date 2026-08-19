@@ -31,10 +31,22 @@ export async function getMicrophoneStream(): Promise<MediaStream> {
   });
 }
 
+/**
+ * Inicia a captura de compartilhamento de tela.
+ *
+ * Solicitamos `audio: true` para que, quando o usuário escolher uma fonte
+ * que disponibiliza áudio (tipicamente "aba do navegador"), a track de
+ * áudio venha junto na mesma captura. Nem todo navegador/fonte oferece essa
+ * track — o Chrome, por exemplo, só retorna áudio quando o usuário escolhe
+ * "Aba" e marca a opção de compartilhar áudio; "Janela" nunca oferece áudio;
+ * "Tela inteira" depende do SO. Por isso `screenStream.getAudioTracks()`
+ * pode legitimamente vir vazio — isso não é um erro, é comportamento normal
+ * do navegador, e o chamador não deve tratar como falha.
+ */
 export async function getScreenStream(): Promise<MediaStream> {
   return navigator.mediaDevices.getDisplayMedia({
     video: true,
-    audio: false,
+    audio: true,
   });
 }
 

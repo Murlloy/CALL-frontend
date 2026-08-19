@@ -145,6 +145,9 @@ export default function RoomPage() {
             remoteStreams={webrtc.remoteStreams}
             sharingPeerId={webrtc.sharingPeerId}
             localScreenStream={webrtc.localScreenStream}
+            remoteScreenStream={webrtc.sharingPeerId ? webrtc.remoteScreenStreams.get(webrtc.sharingPeerId) : null}
+            screenVolume={webrtc.screenVolume}
+            onScreenVolumeChange={webrtc.setScreenVolume}
           />
         </div>
 
